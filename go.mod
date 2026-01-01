@@ -1,4 +1,4 @@
-module errgroup-temporal
+module github.com/Pivnoy/errgroup-temporal
 
 go 1.24.0
 
