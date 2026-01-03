@@ -1,4 +1,4 @@
-package errgroup_temporal
+package internal
 
 import (
 	"errors"
@@ -6,25 +6,18 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-type group struct {
-	wg      workflow.WaitGroup
-	errOnce Once
-	err     error
+var _ ErrGroup = (*errGroupImpl)(nil)
+
+type errGroupImpl struct {
+	wg   workflow.WaitGroup
+	once Once
+	err  error
 
 	ctx    workflow.Context
 	cancel workflow.CancelFunc
 }
 
-func NewErrGroup(ctx workflow.Context) *group {
-	ctx, cancel := workflow.WithCancel(ctx)
-	return &group{
-		ctx:    ctx,
-		cancel: cancel,
-		wg:     workflow.NewWaitGroup(ctx),
-	}
-}
-
-func (g *group) Wait() error {
+func (g *errGroupImpl) Wait() error {
 	g.wg.Wait(g.ctx)
 	if g.cancel != nil {
 		g.cancel()
@@ -33,14 +26,14 @@ func (g *group) Wait() error {
 	return g.err
 }
 
-func (g *group) Go(f func(ctx workflow.Context) error) {
+func (g *errGroupImpl) Go(f func(ctx workflow.Context) error) {
 	g.wg.Add(1)
 
 	workflow.Go(g.ctx, func(ctxFn workflow.Context) {
 		defer g.wg.Done()
 
 		if err := f(ctxFn); err != nil {
-			if err := g.errOnce.Do(ctxFn, func() {
+			if err := g.once.Do(func() {
 				g.err = err
 				if g.cancel != nil {
 					g.cancel()
